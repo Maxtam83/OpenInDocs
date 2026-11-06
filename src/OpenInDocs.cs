@@ -382,7 +382,7 @@ static class Program
             FilePath = Path.GetFullPath(args[0]);
             Run();
         }
-        catch (Exception e) { Fallback(L.T("Erreur : ", "Error: ") + e.Message); }
+        catch (Exception e) { Fail(L.T("Erreur inattendue : ", "Unexpected error: ") + e.Message); }
         return 0;
     }
 
@@ -390,8 +390,8 @@ static class Program
     {
         if (!File.Exists(FilePath)) { Show(L.T("Fichier introuvable :\n", "File not found:\n") + FilePath, MessageBoxIcon.Error); return; }
         string root = Drive.FindRoot(Cfg, FilePath);
-        if (root == null) { Fallback(L.T("Le dossier « Mon Drive » est introuvable. Google Drive pour ordinateur est-il lancé ?", "Your \"My Drive\" folder was not found. Is Google Drive for desktop running?")); return; }
-        if (Drive.Databases().Count == 0) { Fallback(L.T("La base locale de Google Drive est introuvable.", "Google Drive for desktop's local database was not found.")); return; }
+        if (root == null) { Fail(L.T("Le dossier « Mon Drive » est introuvable. Google Drive pour ordinateur est-il lancé ?", "Your \"My Drive\" folder was not found. Is Google Drive for desktop running?")); return; }
+        if (Drive.Databases().Count == 0) { Fail(L.T("La base locale de Google Drive est introuvable.", "Google Drive for desktop's local database was not found.")); return; }
         string ext = Path.GetExtension(FilePath);
 
         string[] seg = null;
@@ -421,7 +421,7 @@ static class Program
                     Thread.Sleep(700);
                 }
             }
-            catch (Exception e) { error = e.Message; }
+            catch (Exception e) { error = L.T("La copie ou l'envoi vers Google Drive a échoué : ", "Copying or uploading to Google Drive failed: ") + e.Message; }
             f.CloseSafe();
         });
         worker.IsBackground = true;
@@ -431,8 +431,8 @@ static class Program
         if (f.Cancelled) return;
         worker.Join();
         if (id != null) OpenEditor(id, ext);
-        else if (error != null) Fallback(L.T("Erreur : ", "Error: ") + error);
-        else Fallback(L.T("Le fichier n'a pas reçu d'identifiant Google Drive au bout de ", "The file did not get a Google Drive ID after ") + Cfg.MaxWaitSeconds
+        else if (error != null) Fail(error);
+        else Fail(L.T("Le fichier n'a pas reçu d'identifiant Google Drive au bout de ", "The file did not get a Google Drive ID after ") + Cfg.MaxWaitSeconds
                       + L.T(" s (pas de connexion, ou Google Drive en pause).", " s (no connection, or Google Drive is paused)."));
     }
 
@@ -497,7 +497,8 @@ static class Program
     static void OpenEditor(string id, string ext)
     {
         try { AllowSetForegroundWindow(-1); } catch (Exception) { }   // let the browser come to the front
-        Process.Start(BuildUrl(id, ext));
+        try { Process.Start(BuildUrl(id, ext)); }
+        catch (Exception e) { Fail(L.T("Le navigateur n'a pas pu être lancé : ", "The browser could not be launched: ") + e.Message); }
     }
 
     static DialogResult Show(string text, MessageBoxIcon icon)
@@ -505,20 +506,14 @@ static class Program
         return MessageBox.Show(text, AppName, MessageBoxButtons.OK, icon);
     }
 
-    // When something goes wrong, offer to open the file in the regular Office application instead.
-    static void Fallback(string reason)
+    // Something went wrong: say what failed. No alternative application is offered.
+    static void Fail(string reason)
     {
-        string ext = (FilePath == null) ? "" : Path.GetExtension(FilePath).ToLowerInvariant();
-        string exe = "winword.exe", app = "Word";
-        if (ext.StartsWith(".xl") || ext == ".ods" || ext == ".csv") { exe = "excel.exe"; app = "Excel"; }
-        else if (ext.StartsWith(".pp") || ext == ".odp") { exe = "powerpnt.exe"; app = "PowerPoint"; }
-
-        if (FilePath == null || !File.Exists(FilePath)) { Show(reason, MessageBoxIcon.Warning); return; }
-        DialogResult r = MessageBox.Show(reason + L.T("\n\nOuvrir le fichier dans ", "\n\nOpen the file in ") + app + L.T(" à la place ?", " instead?"), AppName,
-                                         MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
-        if (r != DialogResult.Yes) return;
-        try { Process.Start(exe, "\"" + FilePath + "\""); }
-        catch (Exception) { Show(app + L.T(" n'a pas été trouvé sur ce PC.", " was not found on this PC."), MessageBoxIcon.Error); }
+        string name = (FilePath == null) ? "" : Path.GetFileName(FilePath);
+        string head = (name.Length > 0)
+            ? L.T("Impossible d'ouvrir « " + name + " » dans Google Workspace.", "Could not open \"" + name + "\" in Google Workspace.")
+            : L.T("Impossible d'ouvrir le fichier dans Google Workspace.", "Could not open the file in Google Workspace.");
+        Show(head + "\n\n" + reason, MessageBoxIcon.Error);
     }
 
     static void Diagnostic()

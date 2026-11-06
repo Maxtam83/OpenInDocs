@@ -60,7 +60,7 @@ OpenInDocs reads it (read-only) to find the Drive ID of the copied file, then op
 
 ## Limitations
 
-- **Relies on an undocumented database.** A Drive for desktop update may change its layout and break the lookup. The tool then falls back to Office instead of failing silently. Please open an issue if this happens.
+- **Relies on an undocumented database.** A Drive for desktop update may change its layout and break the lookup. The tool then shows an error message saying what failed instead of failing silently. Please open an issue if this happens.
 - Developed and tested on Windows 11 with a French display language, one Google account and Drive in *Stream files* mode. *Mirror files* mode and other languages should work but are untested. Reports are welcome.
 - `.docx` files open in Google's Office-compatibility mode and stay `.docx` on Drive (use *File > Save as Google Docs* to convert).
 - Files are uploaded to **your** Drive. Don't use this for files you must not store there.

@@ -60,7 +60,7 @@ OpenInDocs la lit (en lecture seule) pour retrouver l'identifiant Drive du fichi
 
 ## Limites
 
-- **Repose sur une base non documentée.** Une mise à jour de Drive pour ordinateur peut changer son format et casser la recherche. L'outil bascule alors sur Office au lieu d'échouer en silence. Merci d'ouvrir une issue le cas échéant.
+- **Repose sur une base non documentée.** Une mise à jour de Drive pour ordinateur peut changer son format et casser la recherche. L'outil affiche alors un message d'erreur qui dit ce qui a échoué, au lieu d'échouer en silence. Merci d'ouvrir une issue le cas échéant.
 - Développé et testé sous Windows 11 en français, avec un seul compte Google et Drive en mode *Diffuser des fichiers*. Le mode *Mettre en miroir* et les autres langues devraient fonctionner mais n'ont pas été testés. Les retours sont les bienvenus.
 - Les `.docx` s'ouvrent dans le mode de compatibilité Office de Google et restent des `.docx` sur Drive (*Fichier > Enregistrer au format Google Docs* pour convertir).
 - Les fichiers sont envoyés sur **votre** Drive. À éviter pour des fichiers qui ne doivent pas y être stockés.
