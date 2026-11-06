@@ -117,11 +117,11 @@ public static class PeIcons
         foreach (Ent e in readDir(rbase + (int)(groupDir & 0x7fffffffu))) if (e.Key >= 0) groups[e.Key] = e.Ptr;
 
         LastInfo = "resource icons=" + icons.Count + ", icon groups=" + groups.Count;
-        List<int> ids = new List<int>();
-        if (wanted == null || wanted.Length == 0) { foreach (long k in groups.Keys) ids.Add((int)k); }
-        else ids.AddRange(wanted);
+        List<int> groupIds = new List<int>();
+        if (wanted == null || wanted.Length == 0) { foreach (long k in groups.Keys) groupIds.Add((int)k); }
+        else groupIds.AddRange(wanted);
 
-        foreach (int id in ids)
+        foreach (int id in groupIds)
         {
             uint gp;
             if (!groups.TryGetValue(id, out gp)) continue;
