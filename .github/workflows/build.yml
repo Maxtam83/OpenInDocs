@@ -39,16 +39,22 @@ jobs:
           $script = Get-Content installer\Install.ps1 -Raw
           if ($script -notmatch "(?s)Add-Type -TypeDefinition @'\r?\n(.*?)\r?\n'@") { throw "PeIcons source not found" }
           Add-Type -TypeDefinition $Matches[1]
-          $bytes = [IO.File]::ReadAllBytes("$env:WINDIR\System32\shell32.dll")
-          $found = [PeIcons]::Extract($bytes, [int[]](1..400))
-          Write-Host "Extracted $($found.Count) icon groups from shell32.dll"
-          if ($found.Count -lt 10) { throw "Icon extraction returned too few icons" }
-          foreach ($k in $found.Keys) {
-            $b = $found[$k]
+          $best = $null
+          foreach ($name in 'imageres.dll', 'shell32.dll', 'explorer.exe', 'mmcndmgr.dll') {
+            $f = Join-Path $env:WINDIR "System32\$name"
+            if (-not (Test-Path $f)) { $f = Join-Path $env:WINDIR $name }
+            if (-not (Test-Path $f)) { Write-Host "$name : not found"; continue }
+            $found = [PeIcons]::Extract([IO.File]::ReadAllBytes($f), $null)
+            Write-Host "$name : $($found.Count) icon groups extracted [$([PeIcons]::LastInfo)]"
+            if ($found.Count -ge 10 -and -not $best) { $best = $found }
+          }
+          if (-not $best) { throw "Icon extraction returned too few icons from every test file" }
+          foreach ($k in $best.Keys) {
+            $b = $best[$k]
             if ($b[0] -ne 0 -or $b[1] -ne 0 -or $b[2] -ne 1 -or $b[3] -ne 0) { throw "Group $k is not a valid .ico header" }
           }
-          $first = $found.Keys | Select-Object -First 1
-          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\sample.ico", $found[$first])
+          $first = $best.Keys | Select-Object -First 1
+          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\sample.ico", $best[$first])
           Add-Type -AssemblyName System.Drawing
           $icon = New-Object System.Drawing.Icon("$env:RUNNER_TEMP\sample.ico")
           Write-Host "Sample icon loads: $($icon.Width)x$($icon.Height)"

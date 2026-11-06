@@ -47,11 +47,15 @@ public static class PeIcons
 
     class Ent { public long Key; public uint Ptr; }
 
+    public static string LastInfo = "";
+
     public static Dictionary<int, byte[]> Extract(byte[] d, int[] wanted)
     {
         Dictionary<int, byte[]> result = new Dictionary<int, byte[]>();
+        LastInfo = "no PE header";
         int pe = (int)U32(d, 0x3C);
         if (d[pe] != 'P' || d[pe + 1] != 'E') return result;
+        LastInfo = "no resources";
         int nsec = U16(d, pe + 6);
         int optsz = U16(d, pe + 20);
         int opt = pe + 24;
@@ -105,14 +109,19 @@ public static class PeIcons
 
         uint iconDir = 0, groupDir = 0;
         foreach (Ent e in readDir(rbase)) { if (e.Key == 3) iconDir = e.Ptr; else if (e.Key == 14) groupDir = e.Ptr; }
-        if (iconDir == 0 || groupDir == 0) return result;
+        if (iconDir == 0 || groupDir == 0) { LastInfo = "no icon resources (top-level types: " + readDir(rbase).Count + ")"; return result; }
 
         Dictionary<long, uint> icons = new Dictionary<long, uint>();
         foreach (Ent e in readDir(rbase + (int)(iconDir & 0x7fffffffu))) if (e.Key >= 0) icons[e.Key] = e.Ptr;
         Dictionary<long, uint> groups = new Dictionary<long, uint>();
         foreach (Ent e in readDir(rbase + (int)(groupDir & 0x7fffffffu))) if (e.Key >= 0) groups[e.Key] = e.Ptr;
 
-        foreach (int id in wanted)
+        LastInfo = "resource icons=" + icons.Count + ", icon groups=" + groups.Count;
+        List<int> ids = new List<int>();
+        if (wanted == null || wanted.Length == 0) { foreach (long k in groups.Keys) ids.Add((int)k); }
+        else ids.AddRange(wanted);
+
+        foreach (int id in ids)
         {
             uint gp;
             if (!groups.TryGetValue(id, out gp)) continue;
