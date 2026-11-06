@@ -1,0 +1,80 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compile the three launchers (same compiler as the installer)
+        shell: powershell
+        run: |
+          $csc = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+          foreach ($d in 'DOCS', 'SHEETS', 'SLIDES') {
+            & $csc /nologo /target:winexe /optimize+ "/out:$env:RUNNER_TEMP\test-$d.exe" "/define:$d" /r:System.Windows.Forms.dll /r:System.Drawing.dll src\OpenInDocs.cs
+            if ($LASTEXITCODE -ne 0) { throw "Compilation failed for $d" }
+          }
+
+      - name: Parse the PowerShell scripts
+        shell: powershell
+        run: |
+          foreach ($f in Get-ChildItem installer\*.ps1) {
+            $errors = $null; $tokens = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Host "$($f.Name):$($_.Extent.StartLineNumber) $($_.Message)" }; throw "Syntax errors in $($f.Name)" }
+          }
+
+      - name: Test the icon extractor on a real Windows DLL
+        shell: powershell
+        run: |
+          $script = Get-Content installer\Install.ps1 -Raw
+          if ($script -notmatch "(?s)Add-Type -TypeDefinition @'\r?\n(.*?)\r?\n'@") { throw "PeIcons source not found" }
+          Add-Type -TypeDefinition $Matches[1]
+          $bytes = [IO.File]::ReadAllBytes("$env:WINDIR\System32\shell32.dll")
+          $found = [PeIcons]::Extract($bytes, [int[]](1..400))
+          Write-Host "Extracted $($found.Count) icon groups from shell32.dll"
+          if ($found.Count -lt 10) { throw "Icon extraction returned too few icons" }
+          foreach ($k in $found.Keys) {
+            $b = $found[$k]
+            if ($b[0] -ne 0 -or $b[1] -ne 0 -or $b[2] -ne 1 -or $b[3] -ne 0) { throw "Group $k is not a valid .ico header" }
+          }
+          $first = $found.Keys | Select-Object -First 1
+          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\sample.ico", $found[$first])
+          Add-Type -AssemblyName System.Drawing
+          $icon = New-Object System.Drawing.Icon("$env:RUNNER_TEMP\sample.ico")
+          Write-Host "Sample icon loads: $($icon.Width)x$($icon.Height)"
+
+      - name: Package
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory dist | Out-Null
+          Compress-Archive -Path src, installer, config, README.md, README.fr.md, LICENSE -DestinationPath dist\OpenInDocs.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenInDocs
+          path: dist/OpenInDocs.zip
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenInDocs
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" OpenInDocs.zip --repo "${{ github.repository }}" --generate-notes

@@ -1,0 +1,5 @@
+*.exe
+*.zip
+dist/
+# Icons come from the user's own Google Drive installation and must never be committed
+*.ico
